@@ -4,18 +4,18 @@ SEOTitle: 咬咬的博客 | Cc Blog
 header-img: img/home-bg.jpg
 email: 825059346@qq.com
 description: "足球，音乐，程序猿，Java，互联网，年轻| 这里是 咬咬 的个人博客，与你一起发现更大的世界。"
-keyword: "黄玄, Hux黄玄, Hux, 鬼栈, huxpro, @huxpro, 黄玄的博客, Hux Blog, 博客, 个人网站, 互联网, 前端, 设计, 产品, 肖玉, Lynn, 肖玉的男朋友"
+keyword: "足球，音乐，程序猿，Java，互联网，"
 baseurl: ""
 url: "http://yaoayao.github.io"
 
 
 # SNS settings
 RSS: false
-weibo_username:     huxpro
+#weibo_username:     huxpro
 zhihu_username:     huxpro
 github_username:    huxpro
 #twitter_username:  huxpro
-facebook_username:  huxpro
+#facebook_username:  huxpro
 
 
 # Build settings
@@ -51,7 +51,7 @@ useGoogleAnalysis: true     # TODO
 
 # Sidebar settings
 sidebar: true                           # whether or not using Sidebar.
-sidebar-about-description: "写写代码，做做设计，看看产品。世界那么大，多玩玩看看。"
+sidebar-about-description: "写写代码，看看书，跑跑步，仰望星空，世界很大，简简单单就好"
 sidebar-avatar: /img/avatar-hux.jpg     # use absolute URL.
 
 # Featured Tags
@@ -61,13 +61,7 @@ featured-condition-size: 1              # A tag will be featured if the size of 
 # Friends
 friends: [
     {
-        title: "天镶的博客",
-        href: "http://lingyu.wang/"
-    },{
-        title: "Luke的自留地",
-        href: "http://hmqk1995.github.io"
-    },{
-        title: "SmdCn's Blog",
-        href: "http://blog.smdcn.net"
+        title: "烟灰缸的博客",
+        href: "http://ashtray.github.io/"
     }
 ]
