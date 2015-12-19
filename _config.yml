@@ -38,7 +38,7 @@ input: GFM        # use Github Flavored Markdown !important
 # please set your own DuoShuo account in `post.html` and `about.html`
 # seeing the Share component is depend on Comment so we can NOT use share only.
 useDuoshuo: true    # use both Comment and Share
-useShare: false      # set to false if you want to use Comment only
+useShare: true      # set to false if you want to use Comment only
 
 
 
