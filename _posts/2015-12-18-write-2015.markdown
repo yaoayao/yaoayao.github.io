@@ -4,7 +4,7 @@ title:      "奇妙的化学法应"
 subtitle:   " \"一个人在茶水间的乱想\""
 date:       2015-12-18 21:00:00
 author:     "Yaoyao"
-header-img: "img/blog-snow.png"
+header-img: "img/share/time.jpg"
 tags:
     - 生活
 ---
