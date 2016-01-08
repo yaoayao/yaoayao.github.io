@@ -1,0 +1,51 @@
+---
+layout:     post
+title:      "Innodb空间文件结构基础"
+subtitle:   " \"Innodb存储引擎\""
+date:       2016-01-08 21:00:00
+author:     "Yaoyao"
+header-img: "img/innodb.png"
+tags:
+    - MySql
+---
+
+ Innodb的数据存储模型是“space”，我们在mysql中常称为“表空间”，有时在Innodb中也称为“file spaces”。运行中的系统里一个space可能由多种混合的文件组成，然而在逻辑上可以把它看成一个文件，我们可以把多样的物理文件作为是连在一起的一个文件来处理。
+####  Pages(页)
+每一个space是由大小通常为16kb（在两种情况下不是16kb：编译期定义的 UNIV_PAGE_SIZE改变或者使用Innodb压缩）的页组成。space中的每一个页都一个32位的整数作为标示，通常称为“offset”（偏移），实际上它就是space中相对space自身开始位置的偏移量。所以第0页在文件偏移量为0的位置，第一页在文件偏移量为16384（2^14）的位置，以此类推。（牛逼人或许知道Innodb的数据量限制为64tb，这实际上就是每一个space的限制，2^32 x 16 KiB = 64 TiB）.页的机构图如下：
+![enter image description here](http://jcole.us/blog/files/innodb/20130103/72dpi/Basic_Page_Overview.png)
+每一个页有38位的文件头和8位的文件尾，文件头的作用是：表明页的类型，决定其他页的结构。文件头/尾的机构如下图：
+![enter image description here](http://jcole.us/blog/files/innodb/20130103/50dpi/FIL_Header_and_Trailer.png)
+
+文件头包含下面的结构：
+- 页的类型存储在文件头中，是为了以该类型去解析剩余的页数据。页被分配用来进行文件空间的管理、extent management(范围管理)、事务系统、数据字典、undo logs(撤销日志)、blobs还有索引。
+- space ID 被存储在文件头
+- 一旦页进行初始化，页的编号就被存储到文件头中。从文件头中读取到的页编号与按照偏移量计算的编号进行匹配来检验读取数据的正确性，并且文件头的初始化可以用来标识页的初始化。
+- 文件头中存储这一个32位的检验码(Checksum)，文件尾中存储着老的格式的校验码。老的校验码可以弃用从而该空间可以回收。
+- 文件头中存储着指向同一种页类型的并且在逻辑上的上页和下页的指针，这就建立起了不同页间的双向链表，从而在同一层次上的索引页可以链到所有的页，全索引扫描变得更高效。很多类型的页并不使用这块区域。
+- 最新修改页的64位的日志顺序号(LSN)存储在文件头中，LSN的低32位存储在文件尾中。
+- 64位的"flush LSN"存储在文件头中，实际上它构成了整个系统中的一页，space0的第0页，这里存储了整个系统中的所有页中最大的"flush LSN"。这部分区域经常被重复利用。
+#### Space 文件
+
+一个space文件就是一系列页(最大2^32)组成的,为了更高效的管理，页被分组成1mb的块(64个连续的页)，每个块称为一个"extent"。在space中很多结构都是基于extent而不是页。
+Innodb需要做一些记录来保持对所有的页、extent还有space本身的连接，所以一个space文件存在一些必须的炒鸡结构。
+![enter image description here](http://jcole.us/blog/files/innodb/20130103/50dpi/Space_File_Overview.png)
+space中的第一页(page 0)总是FSP_HDR 或者成为space文件的头。FSP_HDR 页中包含一个FSP头结构，这个结构中记录着	像space的大小、空闲的列表、分散的列表以及有关extent的信息。
+FSP_HDR 页中只有存储256个extent信息的空间，所以每16384个页需要额外的以XDES 页的形式的空间。除了在XDES 页中FSP头是以0开始的之外，XDES 和FSP_HDR有相同的结构。随着space文件大小的增长额外的页会自动的分配。
+space中的第三页(page 2)是INODE页，用来存储有关段(一组extent加一个单独分配的fragment数组)文件的列表。每一个INODE页可以存储85个INODE,每个索引需要2个INODE。
+ 紧靠着FSP_HDR 或者XDES页总会有一个IBUF_BITMAP ，它用来存储插入缓存的信息，这里我们先不讨论。
+#### 系统space
+ 系统space(space 0)在Innodb中是不同的，它包含一些固定的页去存储很多Innodb重要操作的信息。系统space前三页也是分配FSP_HDR, IBUF_BITMAP, and INODE页，只是第三页开始后面会有所不同。
+ ![enter image description here](http://jcole.us/blog/files/innodb/20130103/50dpi/ibdata1_File_Overview.png)
+下面是被分配的页：
+- 第3页，类型：SYS，记录插入缓存的相关信息；
+- 第4页，类型：INDEX，插入缓存所用的索引结构的根；
+- 第5页，类型：TRX_SYS，Innodb事务操作的相关信息，例如最后一次事物的id，Innodb二进制日志信息，重复写缓存extent的位置。
+- 第6页，类型：SYS，第一次回滚的页，更多的页(甚至整个extent)被分配用来存储回滚数据。
+- 第7页，类型：SYS，数据字典的头信息，包含组成数据字典的索引根页的编号。这些信息可以用来找到所有的索引(表)，因为他们根页的编号都存储在了数据字典里。
+- 64-127页，重复写缓存区中的第一个64页大小的块，重复写缓存区主要用来作为Innodb恢复机制的一部分。
+- 128-191页，重复写缓存区的第二块。
+其他的页被分配作为索引用到的扩充，回滚segments，撤销日志等。
+#### 每个表的space文件
+Innodb在MySQL创建表的时候会生成一个.idb文件(实际就是space文件)，这个文件具有典型的space文件的结构。
+![enter image description here](http://jcole.us/blog/files/innodb/20130103/50dpi/IBD_File_Overview.png)
+因为Innodb的大多数结构信息都存储在系统space中，，所以表space中的大多页用来存储索引类型和数据。
