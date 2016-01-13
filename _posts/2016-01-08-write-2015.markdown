@@ -48,4 +48,6 @@ space中的第三页(page 2)是INODE页，用来存储有关段(一组extent加�
 #### 每个表的space文件
 Innodb在MySQL创建表的时候会生成一个.idb文件(实际就是space文件)，这个文件具有典型的space文件的结构。
 ![enter image description here](http://jcole.us/blog/files/innodb/20130103/50dpi/IBD_File_Overview.png)
-因为Innodb的大多数结构信息都存储在系统space中，，所以表space中的大多页用来存储索引类型和数据。
+因为Innodb的大多数结构信息都存储在系统space中，所以表space中的大多页用来存储索引类型和数据。
+
+该系列关于Innodb的文章翻译自Jeremy Cole大神的[博客](http://blog.jcole.us/)

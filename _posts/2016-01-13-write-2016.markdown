@@ -1,0 +1,68 @@
+---
+layout:     post
+title:      "Innodb索引页的物理结构"
+subtitle:   " \"Innodb存储引擎\""
+date:       2016-01-14 18:00:00
+author:     "Yaoyao"
+header-img: "img/innodb.png"
+tags:
+    - MySql
+---
+
+####一切皆索引
+在了解索引的物理结构之前，我们应该知道：一切皆索引。这句话在物理结构上是如何体现的呢？
+>1、每个表都有主键。如果在创建表的时候没有指定主键，第一个非空的唯一key会当做主键；如果没有非空唯一key，一个48位的隐藏的“Row ID(行号)”会被自动添加到表的结构中并且被当做主键。最好是手动指定主键，因为隐藏主键会浪费你每行6字节的空间。
+>2、行数据（非主键列）存储在称为“聚集索引”的主键索引结构中，主键在索引结构中被当做key，行数据被当做对应的value值。
+>3、非主键索引和主键索引有相同的结构，但是结构中的value值是主键索引的值。
+#### 索引页结构概况
+索引页的结构概览每一个索引页都有如下的结构：
+![enter image description here](http://jcole.us/blog/files/innodb/20130106/50dpi/INDEX_Page_Overview.png)
+- The FIL header and trailer：这段区域很典型并且和所有页类型一样。索引页中不同的一点就是FIL头中有指向同一层中上一页和下一页的指针，并且升序排序就是以索引的key为基础。这就形成了每一层所有页的双向链接。在索引的逻辑结构中这一点更容易描述。
+- The FSEG header：根索引页的FSEG包含指向这个索引所在的segments，其他索引页的FSEG都是0.
+- The INDEX header：包含很多与索引页和记录管理(record management)有关的区域。
+- System records:Innodb在每一页有两个系统记录infimum和supremum。这些记录存储在页中固定的位置，所以可以通过偏移量来找到它们。
+- User records:真实的数据。每一个record存储着不定宽度的header和它本身真是的行数据。header里面包含指向下一个record的指针，指针里面按升序存放着相对于页的偏移量，从而形成一个单向链表。
+- The page directory(页目录)：页记录从页的文件头(FIL trailer)中的”top“开始从上往下增长，并且包含指向一些record的指针。
+####索引头
+在每一个索引页中索引头都有固定的长度，他的结构如下：
+![enter image description here](http://jcole.us/blog/files/innodb/20130106/50dpi/INDEX_Header.png)
+- Index ID(索引id):这个页所属的索引的id。
+- Format Flag(格式标志):页中record的格式，存储在"Number of Heap Records(堆记录的数量)"这个区域的高位中。有两个可能的取值：COMPACT 和REDUNDANT
+- Maximum Transaction ID(最大的事务id):这个页中对任何record的任何修改的最大事务号。
+- Number of Heap Records(堆记录的数量):页中record的总数，包括infimum 和supremum系统record，和垃圾record。
+- Number of Records(记录的数量):页中没有删除的用户record数量。
+- Heap Top Position(堆顶 的位置):正在使用的空间尾的所在的偏移量。 Heap Top(堆顶)和page directory(页目录)之间都是空闲区域。
+- First Garbage Record Offset(第一个垃圾记录的偏移量):一个指向垃圾记录列表实体的指针。这个单链表是通过记录头中的'next record'来链接起来的。
+- Garbage Space(垃圾区域):在垃圾记录列表中删除记录所消耗的字节总数。
+- Last Insert Position(最后的插入位置):最后插入记录的偏移量。
+- Page Direction(页方向):一共有三个取值:LEFT, RIGHT, 和NO_DIRECTION。这个值主要用来标识当前页正在连续插入或者随意位置插入。在每一次插入时，读取最后插入的位置的记录，并且把key与插入记录的key进行比较来确定插入的方位。
+- Number of Inserts in Page Direction(在页方向上的插入数量):一旦页方向确定了，当那些相同方向上记录插入时这个值会增大。
+- Number of Directory Slots(目录槽数):页记录每个"槽"的大小，每一个大小是16位的偏移量。
+- Page Level(页等级):页在索引中的等级。叶节点是第0级，随着等级增加构成一个b+树。在一个典型的3级b+树中，根节点在第2级，内部的非叶结点在第1级。
+#### Record format(记录格式):冗余(redundant )和紧凑(compact)
+紧凑格式的记录是新提出的应用在Barracuda (梭子鱼)型的表中，冗余格式的记录是原生的应用在Antelope (羚羊)格式的表中。紧凑型的格式最大限度上淘汰那些记录中的冗余和那些也存储在在别的区域信息。
+#### record指针的一些解读
+record指针用在了几处不同的地方：索引头中的最后插入的位置，页目录中的所有值，系统record和用户record中的“下一条”。所有的record包含一个头信息其次是真实的数据(它们的长度不是固定的)。头信息中指针指向record中真实数据的第一个字节的位置。这种存储方式在头信息和真正的record记录之间是高效的，我们可以通过位置向后读取到头信息，也可以向前读到record的数据。
+因为系统和用户record中的“下一条”指针总是通过指针往回读取的文件头中的第一块区域，所以读取页中所有的record是非常高效的，而不用再管不定长的record数据
+####系统 records: infimum(最低) 和 supremum(最高)
+每一个索引页中都有两个系统record，叫做infimum(最低) 和 supremum(最高)，存储在页中固定的位置(offset 99 and offset 112 )，结构如下：
+![enter image description here](http://jcole.us/blog/files/innodb/20130106/50dpi/INDEX_System_Records.png)
+##### The infimum record
+infimum record代表着一个比页中所有可能的key都小的数，它的“下一条”指向用户record中key值最小的记录。Infimum 作为顺序扫描用户记录的一个固定的实体点。
+#####The supremum record
+supremum record代表着一个比页中所有可能的key都大的数，它的“下一条”指针的值总是0，在一个页里用户record中key值最大的record中的“next record”指针指向supremum 。
+####用户record
+当用户record按顺序的插入时他们将添加到页中，并且通过	每个record头中“next record”按key的值形成单向的链表。单向链表从infimum开始，按升序通过所有的用户record，在supremum结束。通过这个链表按升序扫描页中的所有用户record变得很简单。
+更进一步，使用索引头中的“next page”指针，通过实体索引一页一页的扫描变得很容易。这意味着按升序表扫描是非常快捷的：
+> 1、以索引中第一页(最小的key)开始(通过b+树的遍历来寻找)
+> 2、读取infimum，沿着"next record"指针往下走
+> 3、如果record等于supremum，跳到第5步，如果不是读取和处理record的内容
+> 4、沿着"next record"指针往下走，跳到第三步
+> 5、如果"next page"指针是NULL,，退出，反正，沿着"next page"指针往下走，跳到第2步。
+因为record是单链表而不是双向链表，递减遍历索引不是快捷的。
+####页目录
+页目录以FIL头开始，朝用户record向下增长。页目录包含一个指向每4-8个record的指针，而不总是包含一个为了infimum和supremum的实体。
+![enter image description here](http://jcole.us/blog/files/innodb/20130106/50dpi/INDEX_Page_Directory.png)
+页目录只是一个指向页内record的16位的指针所组成的动态长度的数组。
+####Free space 空闲区域
+用户record(往上增长)和页目录(往下增长)之间的区域被认为是空闲区域，一旦两个区域相交，并且通过重新组织删除垃圾也没有空间回收，那么就认为页满了。

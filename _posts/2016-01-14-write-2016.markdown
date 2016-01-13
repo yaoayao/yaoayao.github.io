@@ -1,0 +1,30 @@
+
+---
+layout:     post
+title:      "Innodb中B+树索引结构"
+subtitle:   " \"Innodb存储引擎\""
+date:       2016-01-14 18:00:00
+author:     "Yaoyao"
+header-img: "img/innodb.png"
+tags:
+    - MySql
+---
+
+####属于解读：B+树，根节点，叶节点，等级
+Innodb使用b+ 树的结构来实现它的索引，当内存中的数据不匹配必须去硬盘里读取的时候，b+树是非常高效的。因为b+树确保了查找任何数据请求时一个固定的读取次数的最大值——仅仅依赖于树的深度。
+一个索引树以root页作为起点，root页位置是固定的(永久的存储在Innodb的数据目录中)，树的大小可能是一个root页也可能是上百万个页。
+页被称为”叶子节点“页或者”非叶子节点“页，叶子节点包含真正的行数据，非叶结点只包含指向叶节点或者非叶结点页的指针，所以数中所有的分支深度是相同的。
+Innodb给树中每个页都赋一个等级：叶节点是0级，往上等级逐渐增加，根节点的等级以树的深度为基础。对于所有的页来说，既不是叶子节点也不是非叶结点的页成为内部页。
+####叶节点和非叶节点页
+对于叶节点和非叶节点页，每一个record包含一个保存着下一record的偏移量的"next record"指针。这个数组以infimum 作为开始，然后以key为基础升序连接所有的record，最后以supremum结束。页中的record不是物理上的排序，他们的序列只是来自链表中的位置。
+叶节点中包含record中以没有key值的values作为数据的一部分。
+![enter image description here](http://jcole.us/blog/files/innodb/20130109/50dpi/B_Tree_Simplified_Leaf_Page.png)
+非叶结点页也有相同的结构，但是它的数据是子节点的页号，并且key值是它指向的子节点中最小的key。
+![enter image description here](http://jcole.us/blog/files/innodb/20130109/50dpi/B_Tree_Simplified_Non_Leaf_Page.png)
+####同一等级下的页
+大多数的索引都不止一页，所以众多的页按升序或者降序连接到一起
+![enter image description here](http://jcole.us/blog/files/innodb/20130109/50dpi/B_Tree_Simplified_Level.png)
+每一个页在头文件中都包含"previous page"和"next page"的指针，这样索引页就形成了同一等级的双向链表。
+####一个页的表的详细概况
+![enter image description here](http://jcole.us/blog/files/innodb/20130109/50dpi/B_Tree_Detailed_Page_Structure.png)
+未完
